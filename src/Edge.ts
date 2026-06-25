@@ -1,5 +1,5 @@
 import type { BaseNode } from './BaseNode';
-import { ANON_EXCHANGE, EXCHANGE, QUEUE, CONSUMER, FANOUT, DEFAULT_BINDING_KEY } from './types';
+import { ANON_EXCHANGE, EXCHANGE, QUEUE, CONSUMER, FANOUT, DEFAULT_BINDING_KEY, SOURCE, DESTINATION } from './types';
 import { Exchange } from './nodes/Exchange';
 import { AnonExchange } from './nodes/AnonExchange';
 
@@ -44,6 +44,8 @@ export class Edge {
       const x = this.to as Exchange | AnonExchange;
       x.removeBinding(this.from, this.getBindingKey());
     }
+    this.from.disconnectFrom(this.to, DESTINATION);
+    this.to.disconnectFrom(this.from, SOURCE);
   }
 
   isNearMouse(mx: number, my: number, threshold = 8): boolean {
