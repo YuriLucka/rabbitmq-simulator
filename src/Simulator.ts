@@ -58,11 +58,6 @@ export class Simulator {
   selectedNodes: Set<BaseNode> = new Set();
   selectedEdges: Set<Edge> = new Set();
 
-  // Rubber-band
-  private isRubberBanding = false;
-  private rubberStartX = 0; private rubberStartY = 0;
-  private rubberEndX = 0;   private rubberEndY = 0;
-
   // Hover for connection port
   private hoveredNode: BaseNode | null = null;
 
@@ -240,10 +235,6 @@ export class Simulator {
     this.fromNode = this.nodeBelowMouse(wx, wy);
     if (this.fromNode && isConnecting && this.fromNode.canStartConnection()) {
       this.tmpEdge = new TmpEdge(this.fromNode, wx, wy);
-    } else if (!this.fromNode && !isConnecting) {
-      this.isRubberBanding = true;
-      this.rubberStartX = this.rubberEndX = wx;
-      this.rubberStartY = this.rubberEndY = wy;
     }
   }
 
@@ -261,11 +252,6 @@ export class Simulator {
       this.camX = this.panCamX + (sx - this.panStartX);
       this.camY = this.panCamY + (sy - this.panStartY);
       this.ui?.hideNodePopover();
-      return;
-    }
-
-    if (this.isRubberBanding) {
-      this.rubberEndX = wx; this.rubberEndY = wy;
       return;
     }
 
@@ -310,23 +296,6 @@ export class Simulator {
     }
 
     const { wx, wy } = this.getPos(e);
-
-    if (this.isRubberBanding) {
-      this.isRubberBanding = false;
-      const x1 = Math.min(this.rubberStartX, this.rubberEndX);
-      const x2 = Math.max(this.rubberStartX, this.rubberEndX);
-      const y1 = Math.min(this.rubberStartY, this.rubberEndY);
-      const y2 = Math.max(this.rubberStartY, this.rubberEndY);
-      if (x2 - x1 > 4 || y2 - y1 > 4) {
-        this.selectedNodes.clear(); this.selectedEdges.clear();
-        for (let i = 0; i < this.nodeCount; i++) {
-          const n = this.nodes[i];
-          if (n && n.x >= x1 && n.x <= x2 && n.y >= y1 && n.y <= y2) this.selectedNodes.add(n);
-        }
-        this.ui?.updateSelectionBar(this.selectedNodes.size, [...this.selectedNodes]);
-      }
-      return;
-    }
 
     if (this.resizingNote) {
       this.resizingNote = null;
@@ -495,23 +464,6 @@ export class Simulator {
     ctx.scale(this.camScale, this.camScale);
 
     this.drawGrid(ctx);
-
-    // Rubber-band selection rect
-    if (this.isRubberBanding) {
-      const rx = Math.min(this.rubberStartX, this.rubberEndX);
-      const ry = Math.min(this.rubberStartY, this.rubberEndY);
-      const rw = Math.abs(this.rubberEndX - this.rubberStartX);
-      const rh = Math.abs(this.rubberEndY - this.rubberStartY);
-      ctx.save();
-      ctx.fillStyle = 'rgba(249,115,22,0.08)';
-      ctx.strokeStyle = '#f97316';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([5, 4]);
-      ctx.fillRect(rx, ry, rw, rh);
-      ctx.strokeRect(rx, ry, rw, rh);
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
 
     for (const edge of this.edges) edge.draw(ctx, this.advancedMode, this.selectedEdges.has(edge));
     this.tmpEdge?.draw(ctx);

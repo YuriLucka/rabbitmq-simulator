@@ -40,8 +40,10 @@ export class Edge {
   }
 
   remove(): void {
-    const x = this.to as Exchange | AnonExchange;
-    x.removeBinding(this.from, this.getBindingKey());
+    if (this.to.getType() === EXCHANGE || this.to.getType() === ANON_EXCHANGE) {
+      const x = this.to as Exchange | AnonExchange;
+      x.removeBinding(this.from, this.getBindingKey());
+    }
   }
 
   isNearMouse(mx: number, my: number, threshold = 8): boolean {
@@ -88,12 +90,21 @@ export class Edge {
     if ((fromType === QUEUE || fromType === EXCHANGE) && this.to.getExchangeType() !== FANOUT) {
       const cx = this.middleX(), cy = this.middleY();
       const label = this.bindingKeyLabel;
+      const hasKey = label !== DEFAULT_BINDING_KEY;
       const tw = ctx.measureText(label).width;
-      ctx.fillStyle = '#1e2235';
-      ctx.beginPath();
-      ctx.roundRect(cx - tw / 2 - 4, cy - 8, tw + 8, 16, 4);
-      ctx.fill();
-      ctx.fillStyle = '#94a3b8';
+      if (hasKey) {
+        ctx.fillStyle = '#2563eb';
+        ctx.beginPath();
+        ctx.roundRect(cx - tw / 2 - 10, cy - 9, tw + 20, 18, 6);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+      } else {
+        ctx.fillStyle = '#1e2235';
+        ctx.beginPath();
+        ctx.roundRect(cx - tw / 2 - 4, cy - 8, tw + 8, 16, 4);
+        ctx.fill();
+        ctx.fillStyle = '#94a3b8';
+      }
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = '11px Inter, system-ui, sans-serif';

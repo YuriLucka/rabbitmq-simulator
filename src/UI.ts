@@ -3,6 +3,7 @@ import type { Message } from './Message';
 import type { BaseNode } from './BaseNode';
 import type { StickyNote } from './StickyNote';
 import { FlowStore, type FlowData } from './FlowStore';
+import { CONSUMER } from './types';
 
 export class UI {
   private currentFlowId: string | null = null;
@@ -389,8 +390,13 @@ export class UI {
     const toggleBtn = document.getElementById('popover-toggle')!;
     const deleteBtn = document.getElementById('popover-delete')!;
 
-    toggleBtn.textContent = node.disabled ? 'Enable' : 'Disable';
-    toggleBtn.className = node.disabled ? 'popover-btn warn' : 'popover-btn';
+    const isConsumer = node.getType() === CONSUMER;
+    toggleBtn.style.display = isConsumer ? '' : 'none';
+
+    if (isConsumer) {
+      toggleBtn.textContent = node.disabled ? 'Enable' : 'Disable';
+      toggleBtn.className = node.disabled ? 'popover-btn warn' : 'popover-btn';
+    }
 
     // Clone to remove old listeners
     const newToggle = toggleBtn.cloneNode(true) as HTMLElement;
@@ -398,11 +404,13 @@ export class UI {
     toggleBtn.replaceWith(newToggle);
     deleteBtn.replaceWith(newDelete);
 
-    newToggle.addEventListener('click', () => {
-      this.sim.toggleNodeDisabled(node);
-      newToggle.textContent = node.disabled ? 'Enable' : 'Disable';
-      newToggle.className = node.disabled ? 'popover-btn warn' : 'popover-btn';
-    });
+    if (isConsumer) {
+      newToggle.addEventListener('click', () => {
+        this.sim.toggleNodeDisabled(node);
+        newToggle.textContent = node.disabled ? 'Enable' : 'Disable';
+        newToggle.className = node.disabled ? 'popover-btn warn' : 'popover-btn';
+      });
+    }
     newDelete.addEventListener('click', () => {
       this.hideNodePopover();
       node.remove();
@@ -435,12 +443,12 @@ export class UI {
     enableBtn.replaceWith(en); disableBtn.replaceWith(dis); deleteBtn.replaceWith(del);
 
     en.addEventListener('click', () => {
-      for (const n of nodes) n.disabled = false;
+      for (const n of nodes) if (n.getType() === CONSUMER) n.disabled = false;
       this.sim.selectedNodes.clear();
       bar.classList.remove('visible');
     });
     dis.addEventListener('click', () => {
-      for (const n of nodes) { n.disabled = true; }
+      for (const n of nodes) if (n.getType() === CONSUMER) n.disabled = true;
       this.sim.selectedNodes.clear();
       bar.classList.remove('visible');
     });
