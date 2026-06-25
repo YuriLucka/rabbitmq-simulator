@@ -55,6 +55,7 @@ export class Producer extends BaseNode {
       this.name ?? this.label,
       this.intervalId !== null,
       this.msg,
+      this.intervalSeconds,
     );
   }
 

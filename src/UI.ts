@@ -143,7 +143,7 @@ export class UI {
     });
   }
 
-  showProducerForm(id: string, name: string, hasInterval: boolean, msg: Message | null): void {
+  showProducerForm(id: string, name: string, hasInterval: boolean, msg: Message | null, intervalSeconds = 0): void {
     this.showForms('#edit_producer_form', '#new_message_form');
 
     (document.getElementById('edit_producer_id') as HTMLInputElement).value = id;
@@ -154,6 +154,9 @@ export class UI {
     if (msg) {
       (document.getElementById('new_message_producer_payload') as HTMLInputElement).value = msg.payload;
       (document.getElementById('new_message_producer_routing_key') as HTMLInputElement).value = msg.routingKey;
+    }
+    if (intervalSeconds > 0) {
+      (document.getElementById('new_message_producer_seconds') as HTMLInputElement).value = String(intervalSeconds);
     }
     this.enableForm('#new_message_form');
     if (hasInterval) this.enableButton('#new_message_stop');
