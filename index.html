@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RabbitMQ Simulator</title>
+  <link rel="icon" type="image/svg+xml" href="/rabbitmq-simulator/favicon.svg">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      margin: 0;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Navbar ── */
+    .sim-navbar {
+      height: 52px;
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 16px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .sim-navbar .brand {
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sim-navbar .brand-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #f97316;
+    }
+    .sim-navbar .nav-hint {
+      font-size: 11px;
+      color: #64748b;
+      margin-left: auto;
+    }
+    .sim-navbar .nav-hint kbd {
+      background: #2d3148;
+      color: #94a3b8;
+      border: 1px solid #3d4464;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 10px;
+    }
+    .nav-btn {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid #3d4464;
+      background: transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .nav-btn:hover { background: #2d3148; color: #e2e8f0; }
+    .nav-btn.active { background: #f97316; border-color: #f97316; color: #fff; }
+    #advanced_mode { /* alias */ }
+
+    /* ── Main layout ── */
+    .sim-main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Canvas wrapper ── */
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #Simulator {
+      display: block;
+      cursor: crosshair;
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── Message Log ── */
+    .msg-log-panel {
+      height: 180px;
+      background: #1a1d27;
+      border-top: 1px solid #2d3148;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .msg-log-header {
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .msg-log-header .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+    #msg-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 16px 14px;
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12.5px;
+      color: #94a3b8;
+    }
+    #msg-log pre { margin: 0; line-height: 1.7; }
+    #msg-log pre .consumer-label { color: #60a5fa; }
+    #msg-log pre .msg-payload { color: #34d399; }
+
+    /* ── Right panel ── */
+    .right-panel {
+      width: 280px;
+      background: #1a1d27;
+      border-left: 1px solid #2d3148;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+    .panel-tab {
+      flex: 1;
+      padding: 10px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all .15s;
+      margin-bottom: -1px;
+    }
+    .panel-tab:hover { color: #94a3b8; }
+    .panel-tab.active { color: #f97316; border-bottom-color: #f97316; }
+
+    .panel-header {
+      padding: 14px 16px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      border-bottom: 1px solid #2d3148;
+    }
+
+    /* ── Flows panel ── */
+    #panel-flows { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    #panel-flows.active { display: flex; }
+    #panel-properties { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
+    #panel-properties.hidden { display: none; }
+
+    .flows-toolbar {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+    .flows-toolbar .field-label { margin-bottom: 2px; }
+    .flows-toolbar input { margin-bottom: 0; }
+
+    .flows-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    .flow-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: all .12s;
+    }
+    .flow-item:hover { background: #1e2235; }
+    .flow-item.current { border-left-color: #f97316; background: rgba(249,115,22,.06); }
+    .flow-item-name {
+      flex: 1;
+      font-size: 13px;
+      color: #cbd5e1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .flow-item.current .flow-item-name { color: #f97316; }
+    .flow-item-date {
+      font-size: 10px;
+      color: #475569;
+      white-space: nowrap;
+    }
+    .flow-item-del {
+      background: transparent;
+      border: none;
+      color: #475569;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 2px;
+      line-height: 1;
+      transition: color .12s;
+      flex-shrink: 0;
+    }
+    .flow-item-del:hover { color: #ef4444; }
+    .flows-empty {
+      padding: 24px 16px;
+      text-align: center;
+      color: #334155;
+      font-size: 12px;
+    }
+
+    #inspector-msg {
+      padding: 20px 16px;
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.5;
+      text-align: center;
+    }
+    #inspector-msg svg { opacity: .3; margin-bottom: 8px; display: block; margin-inline: auto; }
+
+    /* ── Forms ── */
+    form.sim-form, div.sim-form {
+      padding: 14px 16px;
+      display: none;
+    }
+    form.sim-form.visible, div.sim-form.visible { display: block; }
+
+    div.sim-form .field-label {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    #note_text {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 13px;
+      padding: 7px 10px;
+      outline: none;
+      resize: vertical;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    #note_text:focus { border-color: #f97316; }
+    .note-color-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .note-color-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: border-color .15s, transform .1s;
+      flex-shrink: 0;
+    }
+    .note-color-btn:hover { transform: scale(1.15); }
+    .note-color-btn.active { border-color: #f97316; }
+
+    .form-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+    .sim-form .field-label {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .sim-form input[type=text],
+    .sim-form input[type=number],
+    .sim-form select {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 13px;
+      padding: 7px 10px;
+      margin-bottom: 10px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .sim-form input:focus,
+    .sim-form select:focus { border-color: #f97316; }
+    .sim-form select option { background: #1a1d27; }
+
+    .form-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn-sim-primary {
+      flex: 1;
+      background: #f97316;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-sim-primary:hover { background: #ea6c0a; }
+    .btn-sim-primary:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+
+    .btn-sim-danger {
+      background: transparent;
+      border: 1px solid #ef4444;
+      border-radius: 6px;
+      color: #ef4444;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-sim-danger:hover { background: #ef4444; color: #fff; }
+    .btn-sim-danger:disabled { border-color: #374151; color: #6b7280; cursor: not-allowed; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2d3148;
+      margin: 12px 0;
+    }
+
+    /* ── Modal ── */
+    .sim-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      opacity: 0; pointer-events: none;
+      transition: opacity .18s;
+    }
+    .sim-overlay.open { opacity: 1; pointer-events: all; }
+    .sim-modal {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      padding: 24px;
+      min-width: 300px;
+      max-width: 380px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+      transform: scale(.94) translateY(6px);
+      transition: transform .18s;
+    }
+    .sim-overlay.open .sim-modal { transform: scale(1) translateY(0); }
+    .sim-modal-title {
+      font-size: 15px; font-weight: 600; color: #e2e8f0;
+      margin-bottom: 8px;
+    }
+    .sim-modal-body {
+      font-size: 13px; color: #94a3b8; line-height: 1.5;
+      margin-bottom: 20px;
+    }
+    .sim-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 2000; pointer-events: none;
+    }
+    .toast {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #e2e8f0;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+      pointer-events: all;
+      animation: toastIn .2s ease forwards;
+      min-width: 220px; max-width: 340px;
+    }
+    .toast.error { border-color: #ef4444; }
+    .toast.success { border-color: #22c55e; }
+    .toast-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .toast.error .toast-dot { background: #ef4444; }
+    .toast.success .toast-dot { background: #22c55e; }
+    .toast.fade { animation: toastOut .25s ease forwards; }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toastOut {
+      to { opacity: 0; transform: translateY(6px); }
+    }
+
+    /* ── Node popover ── */
+    #node-popover {
+      position: fixed;
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 4px 6px;
+      display: none;
+      gap: 4px;
+      z-index: 500;
+      box-shadow: 0 6px 20px rgba(0,0,0,.5);
+      pointer-events: all;
+      transform: translate(-50%, -100%);
+      margin-top: -8px;
+      align-items: center;
+    }
+    #node-popover.visible { display: flex; }
+    .popover-btn {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 9px;
+      border-radius: 5px;
+      border: 1px solid #3d4464;
+      background: transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all .12s;
+      white-space: nowrap;
+    }
+    .popover-btn:hover { background: #2d3148; color: #e2e8f0; }
+    .popover-btn.danger { border-color: #ef4444; color: #ef4444; }
+    .popover-btn.danger:hover { background: #ef4444; color: #fff; }
+    .popover-btn.warn { border-color: #f59e0b; color: #f59e0b; }
+    .popover-btn.warn:hover { background: #f59e0b; color: #000; }
+
+    /* ── Selection bar ── */
+    #selection-bar {
+      position: fixed;
+      left: 50%;
+      bottom: 56px;
+      transform: translateX(-50%);
+      background: #1a1d27;
+      border: 1px solid #f97316;
+      border-radius: 10px;
+      padding: 6px 12px;
+      display: none;
+      gap: 8px;
+      align-items: center;
+      z-index: 500;
+      box-shadow: 0 6px 24px rgba(0,0,0,.6);
+      white-space: nowrap;
+    }
+    #selection-bar.visible { display: flex; }
+    #selection-count {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-right: 4px;
+    }
+    .sel-btn {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 5px;
+      border: 1px solid #3d4464;
+      background: transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .sel-btn:hover { background: #2d3148; color: #e2e8f0; }
+    .sel-btn.danger { border-color: #ef4444; color: #ef4444; }
+    .sel-btn.danger:hover { background: #ef4444; color: #fff; }
+    .popover-btn.warn { border-color: #f97316; color: #f97316; }
+    .popover-btn.warn:hover { background: #f97316; color: #fff; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3d4464; }
+  </style>
+  <script type="module" crossorigin src="/rabbitmq-simulator/assets/index-CvhMUuVf.js"></script>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header class="sim-navbar">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      RabbitMQ Simulator
+    </div>
+    <button id="advanced_mode" class="nav-btn">Advanced Mode</button>
+    <div style="display:flex;gap:6px;margin-left:8px;">
+      <button id="btn-new-flow" class="nav-btn" title="New empty flow">＋ New</button>
+      <button id="btn-save-flow" class="nav-btn" title="Save current flow">⭳ Save</button>
+      <button id="btn-export-flow" class="nav-btn" title="Export flow as JSON file">↑ Export</button>
+      <label class="nav-btn" title="Import flow from JSON file" style="margin:0;display:flex;align-items:center;cursor:pointer;">
+        ↓ Import<input type="file" id="import-file" accept=".json" style="display:none">
+      </label>
+    </div>
+    <span class="nav-hint">
+      Drag elements from toolbar &nbsp;·&nbsp;
+      Click component → drag <span style="color:#f97316">⊕</span> port to connect &nbsp;·&nbsp;
+      Double-click canvas to add note
+    </span>
+  </header>
+
+  <!-- Main -->
+  <div class="sim-main">
+
+    <!-- Canvas + Log -->
+    <div class="canvas-area">
+      <canvas id="Simulator"></canvas>
+
+      <div class="msg-log-panel">
+        <div class="msg-log-header">
+          <div class="dot"></div>
+          Message Log
+        </div>
+        <div id="msg-log"></div>
+      </div>
+    </div>
+
+    <!-- Right Properties Panel -->
+    <aside class="right-panel">
+      <div class="panel-tabs">
+        <button class="panel-tab active" id="tab-properties">Properties</button>
+        <button class="panel-tab" id="tab-flows">Flows</button>
+      </div>
+
+      <!-- Properties panel -->
+      <div id="panel-properties">
+      <div id="inspector-msg">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/>
+        </svg>
+        Click on an element to display its properties.
+      </div>
+
+      <!-- Exchange form -->
+      <form id="exchange_form" class="sim-form">
+        <div class="form-section-title">Edit Exchange</div>
+        <input id="exchange_id" type="hidden">
+        <div class="field-label">Name</div>
+        <input id="exchange_name" type="text" placeholder="exchange name">
+        <div class="field-label">Type</div>
+        <select id="exchange_type">
+          <option value="0">direct</option>
+          <option value="1">fanout</option>
+          <option value="2">topic</option>
+        </select>
+        <div class="form-actions">
+          <button id="exchange_delete" type="button" class="btn-sim-danger">Delete</button>
+          <button type="submit" class="btn-sim-primary">Save</button>
+        </div>
+      </form>
+
+      <!-- Queue form -->
+      <form id="queue_form" class="sim-form">
+        <div class="form-section-title">Edit Queue</div>
+        <input id="queue_id" type="hidden">
+        <div class="field-label">Name</div>
+        <input id="queue_name" type="text" placeholder="queue name">
+        <div class="form-actions">
+          <button id="queue_delete" type="button" class="btn-sim-danger">Delete</button>
+          <button type="submit" class="btn-sim-primary">Save</button>
+        </div>
+      </form>
+
+      <!-- Producer form -->
+      <form id="edit_producer_form" class="sim-form">
+        <div class="form-section-title">Edit Producer</div>
+        <input id="edit_producer_id" type="hidden">
+        <div class="field-label">Name</div>
+        <input id="edit_producer_name" type="text" placeholder="name">
+        <div class="form-actions">
+          <button id="producer_delete" type="button" class="btn-sim-danger">Delete</button>
+          <button type="submit" class="btn-sim-primary">Save</button>
+        </div>
+      </form>
+
+      <!-- Message form -->
+      <form id="new_message_form" class="sim-form" style="padding-top:0;">
+        <hr class="divider">
+        <div class="form-section-title">Publish Message</div>
+        <input id="new_message_producer_id" type="hidden">
+        <div class="field-label">Payload</div>
+        <input id="new_message_producer_payload" type="text" placeholder="message payload">
+        <div class="field-label">Routing Key</div>
+        <input id="new_message_producer_routing_key" type="text" placeholder="routing key">
+        <div class="field-label">Repeat Interval (sec)</div>
+        <input id="new_message_producer_seconds" type="number" min="1" placeholder="leave empty for one-shot">
+        <div class="form-actions">
+          <button id="new_message_stop" type="button" class="btn-sim-danger">Stop</button>
+          <button type="submit" class="btn-sim-primary">Send</button>
+        </div>
+      </form>
+
+      <!-- Consumer form -->
+      <form id="edit_consumer_form" class="sim-form">
+        <div class="form-section-title">Edit Consumer</div>
+        <input id="edit_consumer_id" type="hidden">
+        <div class="field-label">Name</div>
+        <input id="edit_consumer_name" type="text" placeholder="name">
+        <div class="form-actions">
+          <button id="consumer_delete" type="button" class="btn-sim-danger">Delete</button>
+          <button type="submit" class="btn-sim-primary">Save</button>
+        </div>
+      </form>
+
+      <!-- Binding form -->
+      <form id="bindings_form" class="sim-form">
+        <div class="form-section-title">Edit Binding</div>
+        <input id="binding_id" type="hidden">
+        <div class="field-label">Binding Key</div>
+        <input id="binding_key" type="text" placeholder="routing / binding key">
+        <div class="form-actions">
+          <button id="binding_delete" type="button" class="btn-sim-danger">Unbind</button>
+          <button type="submit" class="btn-sim-primary">Save</button>
+        </div>
+      </form>
+
+      <!-- Note form -->
+      <div id="note_form" class="sim-form" style="display:none;">
+        <div class="form-section-title">Sticky Note</div>
+        <div class="field-label">Text</div>
+        <textarea id="note_text" rows="4" placeholder="Escreva sua anotação..."></textarea>
+        <div class="field-label" style="margin-top:10px;">Cor</div>
+        <div class="note-color-row">
+          <button type="button" class="note-color-btn active" data-color="#fef3c7" style="background:#fef3c7;" title="Amarelo"></button>
+          <button type="button" class="note-color-btn" data-color="#dbeafe" style="background:#dbeafe;" title="Azul"></button>
+          <button type="button" class="note-color-btn" data-color="#dcfce7" style="background:#dcfce7;" title="Verde"></button>
+          <button type="button" class="note-color-btn" data-color="#fce7f3" style="background:#fce7f3;" title="Rosa"></button>
+          <button type="button" class="note-color-btn" data-color="#f3e8ff" style="background:#f3e8ff;" title="Roxo"></button>
+        </div>
+        <div class="form-actions" style="margin-top:14px;">
+          <button id="note_delete" type="button" class="btn-sim-danger">Delete</button>
+        </div>
+      </div>
+
+      </div><!-- /panel-properties -->
+
+      <!-- Flows panel -->
+      <div id="panel-flows">
+        <div class="flows-toolbar">
+          <div class="field-label">Flow name</div>
+          <input id="flow-name-input" type="text" placeholder="My Flow" class="sim-form" style="display:block;margin-bottom:0;">
+          <div class="form-actions">
+            <button id="btn-save-flow-panel" class="btn-sim-primary" type="button">Save</button>
+            <button id="btn-new-flow-panel" class="btn-sim-danger" type="button">New</button>
+          </div>
+        </div>
+        <div class="flows-list" id="flows-list">
+          <div class="flows-empty">No saved flows yet.<br>Click Save to save the current flow.</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Node hover popover -->
+  <div id="node-popover">
+    <button class="popover-btn warn" id="popover-toggle">Disable</button>
+    <button class="popover-btn danger" id="popover-delete">Delete</button>
+  </div>
+
+  <!-- Confirm modal -->
+  <div class="sim-overlay" id="sim-overlay">
+    <div class="sim-modal">
+      <div class="sim-modal-title" id="modal-title"></div>
+      <div class="sim-modal-body" id="modal-body"></div>
+      <div class="sim-modal-actions">
+        <button id="modal-cancel" class="btn-sim-danger" type="button">Cancel</button>
+        <button id="modal-confirm" class="btn-sim-primary" type="button">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-selection action bar -->
+  <div id="selection-bar">
+    <span id="selection-count"></span>
+    <button class="sel-btn" id="sel-enable">Enable all</button>
+    <button class="sel-btn" id="sel-disable">Disable all</button>
+    <button class="sel-btn danger" id="sel-delete">Delete all</button>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+</body>
+</html>
