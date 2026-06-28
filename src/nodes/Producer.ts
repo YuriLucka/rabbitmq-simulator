@@ -23,6 +23,11 @@ export class Producer extends BaseNode {
 
   updateName(name: string): void { this.name = name; }
 
+  // Persist the message draft without sending it (used by Save / load).
+  setMessage(payload: string, routingKey: string): void {
+    this.msg = (payload || routingKey) ? new Message(payload, routingKey) : null;
+  }
+
   publishMessage(payload: string, routingKey: string): void {
     if (this.disabled) return;
     if (this.outgoing.length > 0) {

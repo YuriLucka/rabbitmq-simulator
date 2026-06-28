@@ -25,6 +25,10 @@ export class UI {
       const uuid = (document.getElementById('edit_producer_id') as HTMLInputElement).value;
       const name = (document.getElementById('edit_producer_name') as HTMLInputElement).value;
       this.sim.editProducer(uuid, name);
+      // Persist the payload/routing-key draft too, so Save (not only Send) keeps it.
+      const payload = (document.getElementById('new_message_producer_payload') as HTMLInputElement).value;
+      const routingKey = (document.getElementById('new_message_producer_routing_key') as HTMLInputElement).value;
+      this.sim.setProducerMessage(uuid, payload, routingKey);
     });
 
     document.getElementById('producer_delete')?.addEventListener('click', () => {
@@ -151,13 +155,11 @@ export class UI {
     this.enableForm('#edit_producer_form');
 
     (document.getElementById('new_message_producer_id') as HTMLInputElement).value = id;
-    if (msg) {
-      (document.getElementById('new_message_producer_payload') as HTMLInputElement).value = msg.payload;
-      (document.getElementById('new_message_producer_routing_key') as HTMLInputElement).value = msg.routingKey;
-    }
-    if (intervalSeconds > 0) {
-      (document.getElementById('new_message_producer_seconds') as HTMLInputElement).value = String(intervalSeconds);
-    }
+    // Always reset the shared publish fields so one producer's draft does not
+    // leak into another producer's form.
+    (document.getElementById('new_message_producer_payload') as HTMLInputElement).value = msg ? msg.payload : '';
+    (document.getElementById('new_message_producer_routing_key') as HTMLInputElement).value = msg ? msg.routingKey : '';
+    (document.getElementById('new_message_producer_seconds') as HTMLInputElement).value = intervalSeconds > 0 ? String(intervalSeconds) : '';
     this.enableForm('#new_message_form');
     if (hasInterval) this.enableButton('#new_message_stop');
     else this.disableButton('#new_message_stop');
@@ -221,6 +223,10 @@ export class UI {
   private initFlows(): void {
     // Navbar buttons
     document.getElementById('btn-new-flow')?.addEventListener('click', () => this.newFlow());
+    document.getElementById('btn-organize')?.addEventListener('click', () => {
+      this.sim.autoLayout();
+      this.toast('Components organized', 'success');
+    });
     document.getElementById('btn-save-flow')?.addEventListener('click', () => this.saveFlow());
     document.getElementById('btn-export-flow')?.addEventListener('click', () => this.exportFlow());
     document.getElementById('import-file')?.addEventListener('change', (e) => {

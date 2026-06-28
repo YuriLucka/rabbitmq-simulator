@@ -641,6 +641,10 @@ export class Simulator {
     (this.findNode(uuid) as Producer)?.updateName(name);
   }
 
+  setProducerMessage(uuid: string, payload: string, routingKey: string): void {
+    (this.findNode(uuid) as Producer)?.setMessage(payload, routingKey);
+  }
+
   editConsumer(uuid: string, name: string): void {
     (this.findNode(uuid) as Consumer)?.updateName(name);
   }
@@ -751,8 +755,8 @@ export class Simulator {
         }
         case CONSUMER: {
           const c = n as Consumer;
-          const consume = c.outgoing.length > 0 ? c.outgoing[0].getLabel() : null;
-          out.consumers.push({ name: c.getLabel(), x: c.x, y: c.y, consume });
+          const consumes = c.outgoing.map(q => q.getLabel());
+          out.consumers.push({ name: c.getLabel(), x: c.x, y: c.y, consume: consumes[0] ?? null, consumes });
           break;
         }
       }
@@ -843,20 +847,25 @@ export class Simulator {
         edge?.updateBindingKey(b.routing_key);
       }
     }
-    // Producer → Exchange
+    // Producer → Exchange (+ restore the saved message draft and interval)
     for (const p of data.producers) {
+      const prod = nodeMap.get(p.name) as Producer | undefined;
+      if (!prod) continue;
       if (p.publish) {
-        const prod = nodeMap.get(p.name);
         const exch = nodeMap.get(p.publish.to);
-        if (prod && exch) this.addConnection(prod, exch);
+        if (exch) this.addConnection(prod, exch);
+        prod.setMessage(p.publish.payload, p.publish.routing_key);
       }
+      prod.intervalSeconds = p.interval ?? 0;
     }
-    // Consumer → Queue
+    // Consumer → Queue (supports a consumer bound to multiple queues)
     for (const c of data.consumers) {
-      if (c.consume) {
-        const cons = nodeMap.get(c.name);
-        const q = nodeMap.get(c.consume);
-        if (cons && q) this.addConnection(cons, q);
+      const cons = nodeMap.get(c.name);
+      if (!cons) continue;
+      const targets = c.consumes ?? (c.consume ? [c.consume] : []);
+      for (const qName of targets) {
+        const q = nodeMap.get(qName);
+        if (q) this.addConnection(cons, q);
       }
     }
 
@@ -887,6 +896,66 @@ export class Simulator {
     this.camScale = 1;
     this.camX = 0;
     this.camY = 0;
+  }
+
+  // Auto-arrange nodes into tidy columns by data-flow stage
+  // (producer → exchange → queue → consumer). Within each column, nodes are
+  // ordered by the barycenter of their neighbors in the previous column to
+  // reduce edge crossings, then spread evenly over the canvas height.
+  autoLayout(): void {
+    const nodes = this.getNodes().filter((n): n is BaseNode => n !== null);
+    if (nodes.length === 0) return;
+
+    const colX: Record<number, number> = {
+      [PRODUCER]: 150, [EXCHANGE]: 400, [QUEUE]: 650, [CONSUMER]: 900,
+    };
+    // Start below any header notes that overlap the column band, so the first
+    // row is not hidden behind legend cards pinned to the top.
+    const colMinX = colX[PRODUCER] - 30;
+    const colMaxX = colX[CONSUMER] + 30;
+    let top = 110;
+    for (const note of this.notes) {
+      const noteRight = note.x + (note.width ?? 200);
+      const noteBottom = note.y + (note.height ?? 100);
+      if (note.y < 200 && noteRight > colMinX && note.x < colMaxX) {
+        top = Math.max(top, noteBottom + 25);
+      }
+    }
+    const bottom = Math.max(top + 80, this.height - 55);
+    const byType = (t: number) => nodes.filter(n => n.getType() === t);
+
+    const rowOf = new Map<BaseNode, number>();
+    const place = (arr: BaseNode[]): void => {
+      const gap = arr.length > 1 ? (bottom - top) / (arr.length - 1) : 0;
+      arr.forEach((n, i) => {
+        n.x = colX[n.getType()];
+        n.y = arr.length > 1 ? top + i * gap : (top + bottom) / 2;
+        rowOf.set(n, i);
+      });
+    };
+    const barycenter = (neighbors: BaseNode[]): number => {
+      const rows = neighbors.map(x => rowOf.get(x)).filter((v): v is number => v != null);
+      return rows.length ? rows.reduce((s, v) => s + v, 0) / rows.length : Number.MAX_SAFE_INTEGER;
+    };
+
+    const producers = byType(PRODUCER).sort((a, b) => a.y - b.y);
+    const exchanges = byType(EXCHANGE);
+    const queues = byType(QUEUE);
+    const consumers = byType(CONSUMER);
+
+    // Data-flow adjacency: producer.outgoing=[exchange], queue.outgoing=[exchange],
+    // consumer.outgoing=[queue]. Sort each column by its upstream neighbors' rows.
+    place(producers);
+    exchanges.sort((a, b) =>
+      barycenter(producers.filter(p => p.outgoing.includes(a))) -
+      barycenter(producers.filter(p => p.outgoing.includes(b))));
+    place(exchanges);
+    queues.sort((a, b) => barycenter(a.outgoing) - barycenter(b.outgoing));
+    place(queues);
+    consumers.sort((a, b) => barycenter(a.outgoing) - barycenter(b.outgoing));
+    place(consumers);
+
+    this.resetZoom();
   }
 
   snapshotFlow(): Omit<FlowData, 'id' | 'name' | 'updatedAt'> {
