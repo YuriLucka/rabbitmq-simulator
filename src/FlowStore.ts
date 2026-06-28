@@ -14,7 +14,7 @@ export interface FlowData {
   exchanges: { name: string; type: number; x: number; y: number }[];
   queues: { name: string; x: number; y: number }[];
   producers: { name: string; x: number; y: number; interval: number; publish: { to: string; payload: string; routing_key: string } | null }[];
-  consumers: { name: string; x: number; y: number; consume: string | null }[];
+  consumers: { name: string; x: number; y: number; consume: string | null; consumes?: string[] }[];
   bindings: { source: string; vhost: string; destination: string; destination_type: string; routing_key: string; arguments: unknown[] }[];
   advanced_mode: boolean;
   notes?: NoteData[];
