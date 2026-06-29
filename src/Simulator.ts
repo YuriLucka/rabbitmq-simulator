@@ -817,46 +817,51 @@ export class Simulator {
 
   loadFlow(data: FlowData): void {
     this.clearNodes();
-    const nodeMap = new Map<string, BaseNode>();
+    // Resolve references per node type, not by bare name. A RabbitMQ/MassTransit
+    // topology legitimately reuses a name across types (an endpoint exchange and
+    // its queue share a name; a service is both producer and consumer), so a
+    // single name-keyed map would collide and mis-wire (or crash) on reload.
+    const exchanges = new Map<string, BaseNode>();
+    const queues = new Map<string, BaseNode>();
+    const producers = new Map<string, BaseNode>();
+    const consumers = new Map<string, BaseNode>();
 
     for (const e of data.exchanges) {
       const n = this.addNodeByType(EXCHANGE, e.name, e.x, e.y)!;
       (n as Exchange).setExchangeType(e.type);
-      nodeMap.set(e.name, n);
+      exchanges.set(e.name, n);
     }
     for (const q of data.queues) {
       const n = this.addNodeByType(QUEUE, q.name, q.x, q.y)!;
       this.bindToAnonExchange(n as Queue);
-      nodeMap.set(q.name, n);
+      queues.set(q.name, n);
     }
     for (const p of data.producers) {
-      const n = this.addNodeByType(PRODUCER, p.name, p.x, p.y)!;
-      nodeMap.set(p.name, n);
+      producers.set(p.name, this.addNodeByType(PRODUCER, p.name, p.x, p.y)!);
     }
     for (const c of data.consumers) {
-      const n = this.addNodeByType(CONSUMER, c.name, c.x, c.y)!;
-      nodeMap.set(c.name, n);
+      consumers.set(c.name, this.addNodeByType(CONSUMER, c.name, c.x, c.y)!);
     }
 
-    // Queue → Exchange bindings (addConnection(queue, exchange) to register binding)
+    // Bindings: source is always an exchange; destination is an exchange or a
+    // queue per destination_type. addConnection(dest, source) registers the
+    // binding on the source exchange so it routes to dest.
     for (const b of data.bindings) {
-      const exch = nodeMap.get(b.source);
-      const dest = nodeMap.get(b.destination);
-      if (exch && dest) {
-        const edge = this.addConnection(dest, exch);
+      const source = exchanges.get(b.source);
+      const dest = b.destination_type === 'queue'
+        ? queues.get(b.destination)
+        : exchanges.get(b.destination);
+      if (source && dest) {
+        const edge = this.addConnection(dest, source);
         edge?.updateBindingKey(b.routing_key);
       }
     }
     // Producer → Exchange (+ restore the saved message draft and interval).
-    // Guard the node type: with duplicate labels (a service used as both
-    // producer and consumer) nodeMap can resolve the name to a non-producer,
-    // and calling Producer-only methods on it would throw and abort load.
     for (const p of data.producers) {
-      const node = nodeMap.get(p.name);
-      if (!node || node.getType() !== PRODUCER) continue;
-      const prod = node as Producer;
+      const prod = producers.get(p.name) as Producer | undefined;
+      if (!prod) continue;
       if (p.publish) {
-        const exch = nodeMap.get(p.publish.to);
+        const exch = exchanges.get(p.publish.to);
         if (exch) this.addConnection(prod, exch);
         prod.setMessage(p.publish.payload, p.publish.routing_key);
       }
@@ -864,11 +869,11 @@ export class Simulator {
     }
     // Consumer → Queue (supports a consumer bound to multiple queues)
     for (const c of data.consumers) {
-      const cons = nodeMap.get(c.name);
+      const cons = consumers.get(c.name);
       if (!cons) continue;
       const targets = c.consumes ?? (c.consume ? [c.consume] : []);
       for (const qName of targets) {
-        const q = nodeMap.get(qName);
+        const q = queues.get(qName);
         if (q) this.addConnection(cons, q);
       }
     }
