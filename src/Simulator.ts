@@ -847,10 +847,14 @@ export class Simulator {
         edge?.updateBindingKey(b.routing_key);
       }
     }
-    // Producer → Exchange (+ restore the saved message draft and interval)
+    // Producer → Exchange (+ restore the saved message draft and interval).
+    // Guard the node type: with duplicate labels (a service used as both
+    // producer and consumer) nodeMap can resolve the name to a non-producer,
+    // and calling Producer-only methods on it would throw and abort load.
     for (const p of data.producers) {
-      const prod = nodeMap.get(p.name) as Producer | undefined;
-      if (!prod) continue;
+      const node = nodeMap.get(p.name);
+      if (!node || node.getType() !== PRODUCER) continue;
+      const prod = node as Producer;
       if (p.publish) {
         const exch = nodeMap.get(p.publish.to);
         if (exch) this.addConnection(prod, exch);
