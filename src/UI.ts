@@ -3,7 +3,7 @@ import type { Message } from './Message';
 import type { BaseNode } from './BaseNode';
 import type { StickyNote } from './StickyNote';
 import { FlowStore, type FlowData } from './FlowStore';
-import { CONSUMER } from './types';
+import { EXCHANGE, QUEUE, PRODUCER, CONSUMER } from './types';
 
 export class UI {
   private currentFlowId: string | null = null;
@@ -33,7 +33,7 @@ export class UI {
 
     document.getElementById('producer_delete')?.addEventListener('click', () => {
       const uuid = (document.getElementById('edit_producer_id') as HTMLInputElement).value;
-      this.sim.deleteNode(uuid);
+      this.sim.deleteNode(uuid, PRODUCER);
       this.hideAllForms();
     });
 
@@ -46,7 +46,7 @@ export class UI {
 
     document.getElementById('consumer_delete')?.addEventListener('click', () => {
       const uuid = (document.getElementById('edit_consumer_id') as HTMLInputElement).value;
-      this.sim.deleteNode(uuid);
+      this.sim.deleteNode(uuid, CONSUMER);
       this.hideAllForms();
     });
 
@@ -97,7 +97,7 @@ export class UI {
 
     document.getElementById('queue_delete')?.addEventListener('click', () => {
       const uuid = (document.getElementById('queue_id') as HTMLInputElement).value;
-      this.sim.deleteNode(uuid);
+      this.sim.deleteNode(uuid, QUEUE);
       this.hideAllForms();
     });
 
@@ -112,7 +112,7 @@ export class UI {
 
     document.getElementById('exchange_delete')?.addEventListener('click', () => {
       const uuid = (document.getElementById('exchange_id') as HTMLInputElement).value;
-      this.sim.deleteNode(uuid);
+      this.sim.deleteNode(uuid, EXCHANGE);
       this.hideAllForms();
     });
 
