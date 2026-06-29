@@ -579,6 +579,18 @@ export class Simulator {
     return this.nodeTable.get(label);
   }
 
+  // Resolve a node by label scoped to its type. nodeTable is keyed by label
+  // alone, so a name shared across types (e.g. a service that is both producer
+  // and consumer, or an exchange and queue with the same name) would resolve to
+  // the wrong node. Form actions always know the target type, so they use this.
+  findNodeByType(type: number, label: string): BaseNode | undefined {
+    for (let i = 0; i < this.nodeCount; i++) {
+      const n = this.nodes[i];
+      if (n && n.getType() === type && n.label === label) return n;
+    }
+    return undefined;
+  }
+
   removeNode(n: BaseNode): void {
     for (let i = 0; i < this.nodeCount; i++) {
       if (this.nodes[i] === n) { this.nodes[i] = null; }
@@ -634,24 +646,24 @@ export class Simulator {
   toggleAdvancedMode(on: boolean): void { this.advancedMode = on; }
 
   publishMessage(uuid: string, payload: string, routingKey: string): void {
-    (this.findNode(uuid) as Producer)?.publishMessage(payload, routingKey);
+    (this.findNodeByType(PRODUCER, uuid) as Producer | undefined)?.publishMessage(payload, routingKey);
   }
 
   editProducer(uuid: string, name: string): void {
-    (this.findNode(uuid) as Producer)?.updateName(name);
+    (this.findNodeByType(PRODUCER, uuid) as Producer | undefined)?.updateName(name);
   }
 
   setProducerMessage(uuid: string, payload: string, routingKey: string): void {
-    (this.findNode(uuid) as Producer)?.setMessage(payload, routingKey);
+    (this.findNodeByType(PRODUCER, uuid) as Producer | undefined)?.setMessage(payload, routingKey);
   }
 
   editConsumer(uuid: string, name: string): void {
-    (this.findNode(uuid) as Consumer)?.updateName(name);
+    (this.findNodeByType(CONSUMER, uuid) as Consumer | undefined)?.updateName(name);
   }
 
   editQueue(oldName: string, name: string): void {
     if (!name) return;
-    const n = this.findNode(oldName) as Queue;
+    const n = this.findNodeByType(QUEUE, oldName) as Queue | undefined;
     if (!n) return;
     this.nodeTable.delete(oldName);
     n.changeName(name);
@@ -661,7 +673,7 @@ export class Simulator {
 
   editExchange(oldName: string, name: string, type: number): void {
     if (!name) return;
-    const n = this.findNode(oldName) as Exchange;
+    const n = this.findNodeByType(EXCHANGE, oldName) as Exchange | undefined;
     if (!n) return;
     this.nodeTable.delete(oldName);
     n.changeName(name);
@@ -669,16 +681,17 @@ export class Simulator {
     this.nodeTable.set(name, n);
   }
 
-  deleteNode(uuid: string): void {
-    this.findNode(uuid)?.remove();
+  deleteNode(uuid: string, type?: number): void {
+    const n = type !== undefined ? this.findNodeByType(type, uuid) : this.findNode(uuid);
+    n?.remove();
   }
 
   setProducerInterval(uuid: string, id: ReturnType<typeof setInterval>, seconds: number): void {
-    (this.findNode(uuid) as Producer)?.setIntervalId(id, seconds);
+    (this.findNodeByType(PRODUCER, uuid) as Producer | undefined)?.setIntervalId(id, seconds);
   }
 
   stopPublisher(uuid: string): void {
-    (this.findNode(uuid) as Producer)?.stopPublisher();
+    (this.findNodeByType(PRODUCER, uuid) as Producer | undefined)?.stopPublisher();
   }
 
   updateBindingKey(edgeIndex: number, bk: string): void {
